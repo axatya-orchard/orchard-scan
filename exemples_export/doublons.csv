@@ -1,0 +1,5 @@
+﻿sep=;
+arbre_id;terrain;rang;position;hors_plan;rang_statut;etat_code;etat_label;autre_type;autre_fruit;espece;tronc_code;tronc_label;arch_code;arch_label;fruits_code;fruits_label;charge_mode;couleur_code;couleur_label;pourri_code;pourri_label;ecorce_code;ecorce_label;arbre_complet;duree_saisie_s;flag_qc;horodatage_iso;operateur_label;device_id;app_version;passe;langue_saisie;version;source;media_ref;_fichier
+T1-R07-002;T1;7;2;NON;COMPLET;1;VIVANT;NULL;NULL;NULL;2;GROS;1;B;2;6-15;PALIER;2;ROUGES;1;OUI;2;COUVERTE DE BOSSES;OUI;14;OK;2026-08-08T11:02:31.000Z;AXATYA;DA1B2C;1.0.0;1;FR;1;SAISIE;NULL;T1_R07_AXATYA_20260808_1310.csv
+T1-R07-003;T1;7;3;NON;COMPLET;1;VIVANT;NULL;NULL;NULL;0;FIN;1;B;0;0;PALIER;NULL;NULL;NULL;NULL;0;LISSE;OUI;9;OK;2026-08-08T11:02:52.000Z;AXATYA;DA1B2C;1.0.0;1;FR;1;SAISIE;NULL;T1_R07_AXATYA_20260808_1310.csv
+T1-R07-012;T1;7;12;NON;COMPLET;1;VIVANT;NULL;NULL;NULL;2;GROS;NULL;NULL;NULL;NULL;PALIER;NULL;NULL;NULL;NULL;NULL;NULL;NON;6;OK;2026-08-08T11:06:15.000Z;AXATYA;DA1B2C;1.0.0;1;FR;1;SAISIE;NULL;T1_R07_AXATYA_20260808_1310.csv

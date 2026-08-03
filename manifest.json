@@ -1,0 +1,27 @@
+{
+  "name": "ORCHARD-SCAN",
+  "short_name": "ORCHARD",
+  "description": "Relevé arboricole hors ligne — Heretiskari, Kakhétie",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#14181B",
+  "theme_color": "#14181B",
+  "lang": "fr",
+  "dir": "ltr",
+  "icons": [
+    {
+      "src": "assets/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "assets/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#14181B">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<title>ORCHARD-SCAN</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="assets/icon-192.png">
+<link rel="apple-touch-icon" href="assets/icon-192.png">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="device">
+
+  <!-- ============ BARRE DE SAUVEGARDE ============ -->
+  <div class="save" id="savebar">
+    <span id="savecount"></span>
+    <span id="saveexport"></span>
+  </div>
+
+  <!-- ============ BANDEAU PERSISTANCE REFUSEE ============ -->
+  <div class="pbanner hidden" id="pbanner">
+    <div class="pt" data-i18n="persist.title"></div>
+    <div class="pb" data-i18n="persist.body"></div>
+    <div class="steps">
+      <b data-i18n="persist.install_title"></b>
+      <div data-i18n="persist.step1"></div>
+      <div data-i18n="persist.step2"></div>
+      <div data-i18n="persist.step3"></div>
+      <div data-i18n="persist.step4"></div>
+    </div>
+    <button id="persistretry" data-i18n="persist.retry"></button>
+  </div>
+
+  <!-- ============ 1er LANCEMENT ============ -->
+  <div class="scr" id="scr-first">
+    <div class="setup">
+      <h3 data-i18n="first.h"></h3>
+      <div class="help-txt" data-i18n="first.help"></div>
+      <input id="nameinput" type="text" autocomplete="off" autocorrect="off"
+             autocapitalize="characters" spellcheck="false" maxlength="24"
+             data-i18n-ph="first.placeholder">
+      <div class="row" style="margin-top:14px" data-g="lang">
+        <button class="bs" data-v="FR"><span data-i18n="setup.lang_fr"></span></button>
+        <button class="bs" data-v="EN"><span data-i18n="setup.lang_en"></span></button>
+      </div>
+      <button class="go" id="namesave"><span data-i18n="first.save"></span></button>
+    </div>
+  </div>
+
+  <!-- ============ ACCUEIL / DEMARRAGE ============ -->
+  <div class="scr hidden" id="scr-home">
+    <div class="setup">
+      <button class="resume hidden" id="resumebtn">
+        <span data-i18n="setup.resume"></span><span class="s" id="resumewhere"></span>
+      </button>
+
+      <h3 data-i18n="setup.who"></h3>
+      <div class="who">
+        <span class="n" id="whoname"></span>
+        <span class="c" id="whochange" data-i18n="setup.change"></span>
+      </div>
+
+      <h3 data-i18n="setup.lang"></h3>
+      <div class="row" data-g="lang">
+        <button class="bs" data-v="FR"><span data-i18n="setup.lang_fr"></span></button>
+        <button class="bs" data-v="EN"><span data-i18n="setup.lang_en"></span></button>
+      </div>
+
+      <h3 data-i18n="setup.terrain"></h3>
+      <div class="row" data-g="ter">
+        <button class="bs" data-v="T1"><span data-i18n="setup.t1"></span><span class="s" id="t1sub"></span></button>
+        <button class="bs" data-v="T2"><span data-i18n="setup.t2"></span><span class="s" id="t2sub"></span></button>
+      </div>
+      <div class="row" style="margin-top:5px" data-g="ter">
+        <button class="bs tall" data-v="T3"><span data-i18n="setup.t3"></span><span class="s" data-i18n="setup.t3s"></span></button>
+      </div>
+
+      <button class="go" id="gosetup"><span data-i18n="setup.continue"></span></button>
+
+      <h3 data-i18n="setup.tools"></h3>
+      <button class="tool" id="btn-data"><span data-i18n="setup.data_state"></span></button>
+      <button class="tool" id="btn-exportall"><span data-i18n="setup.export_all"></span></button>
+      <button class="tool" id="btn-blanc"><span data-i18n="setup.fiche_blanc"></span></button>
+      <button class="tool" id="btn-reco"><span data-i18n="setup.recontrole"></span></button>
+    </div>
+  </div>
+
+  <!-- ============ MISSION T1 / T2 ============ -->
+  <div class="scr hidden" id="scr-mission">
+    <div class="mission">
+      <div class="kick" data-i18n="mission.kick"></div>
+      <div class="big" id="m-terrain"></div>
+      <div class="big" id="m-rang" style="margin-top:-4px"></div>
+      <div class="sub" id="m-plan"></div>
+      <button class="go ready" id="m-start"><span data-i18n="mission.start"></span></button>
+      <div class="sub note" id="m-note"></div>
+      <button class="tool" style="margin-top:18px" id="m-back"><span data-i18n="common.back"></span></button>
+    </div>
+  </div>
+
+  <!-- ============ MISSION T3 ============ -->
+  <div class="scr hidden" id="scr-mission3">
+    <div class="mission">
+      <div class="kick t3" data-i18n="t3.kick"></div>
+      <div class="big q" data-i18n="t3.which_row"></div>
+      <div class="row" style="margin-bottom:14px" id="t3rows"></div>
+      <div class="photoreq" id="t3photoreq">
+        <b data-i18n="t3.photo_req_t"></b>
+        <span data-i18n="t3.photo_req_b"></span>
+      </div>
+      <div class="photook hidden" id="t3photook"></div>
+      <button class="tool hidden" id="t3retake"><span data-i18n="t3.photo_retake"></span></button>
+      <button class="go" id="t3go"><span data-i18n="t3.photo_go"></span></button>
+      <input type="file" accept="image/*" capture="environment" id="t3file" class="hidden">
+      <button class="tool" style="margin-top:18px" id="t3back"><span data-i18n="common.back"></span></button>
+    </div>
+  </div>
+
+  <!-- ============ ARBRE T1 / T2 ============ -->
+  <div class="scr hidden" id="scr-tree">
+    <header id="hdr">
+      <div class="addr" id="addr"></div>
+      <div class="ladder" id="ladder"></div>
+      <div class="meta"><span id="hint"></span><span id="clock"></span></div>
+    </header>
+    <main>
+      <div class="block">
+        <div class="lbl"><span class="txt" data-i18n="tree.b1"></span></div>
+        <div class="row" data-g="etat">
+          <button class="b-viv" data-v="VIVANT"><span data-i18n="tree.alive"></span></button>
+        </div>
+        <div class="row" data-g="etat">
+          <button class="b1" data-v="MORT"><span data-i18n="tree.dead"></span></button>
+          <button class="b1" data-v="VIDE"><span data-i18n="tree.empty"></span><span class="s" data-i18n="tree.empty_s"></span></button>
+          <button class="b1" data-v="RECEPE"><span data-i18n="tree.regrowth"></span><span class="s" data-i18n="tree.regrowth_s"></span></button>
+          <button class="b1" data-v="AUTRE"><span data-i18n="tree.other"></span><span class="s" data-i18n="tree.other_s"></span></button>
+        </div>
+      </div>
+
+      <div id="rest">
+        <div class="block">
+          <div class="lbl"><span class="txt" data-i18n="tree.b2"></span><span class="help" data-fiche="tronc">?</span></div>
+          <div class="row" data-g="tronc">
+            <button class="b2" data-v="F"><span data-i18n="tree.thin"></span><span class="s" data-i18n="tree.thin_s"></span></button>
+            <button class="b2" data-v="M"><span data-i18n="tree.medium"></span><span class="s" data-i18n="tree.medium_s"></span></button>
+            <button class="b2" data-v="G"><span data-i18n="tree.thick"></span><span class="s" data-i18n="tree.thick_s"></span></button>
+          </div>
+        </div>
+
+        <div class="block">
+          <div class="lbl"><span class="txt" data-i18n="tree.b3"></span><span class="help" data-fiche="arch">?</span></div>
+          <div class="row" data-g="arch">
+            <button class="b3" data-v="A"><span class="L">A</span><span class="s" data-i18n="tree.a_s"></span></button>
+            <button class="b3" data-v="B"><span class="L">B</span><span class="s" data-i18n="tree.b_s"></span></button>
+            <button class="b3" data-v="C"><span class="L">C</span><span class="s" data-i18n="tree.c_s"></span></button>
+          </div>
+        </div>
+
+        <div class="block">
+          <div class="lbl"><span class="txt" data-i18n="tree.b4"></span></div>
+          <div class="row" data-g="fruits">
+            <button class="b4" data-v="0"><span data-i18n="tree.f0"></span></button>
+            <button class="b4" data-v="1"><span data-i18n="tree.f1"></span></button>
+            <button class="b4" data-v="2"><span data-i18n="tree.f2"></span></button>
+            <button class="b4" data-v="3"><span data-i18n="tree.f3"></span></button>
+          </div>
+        </div>
+
+        <div id="iffruit" class="hidden">
+          <div class="block">
+            <div class="lbl"><span class="txt" data-i18n="tree.b5"></span><span class="help" data-fiche="coul">?</span></div>
+            <div class="row" data-g="couleur">
+              <button class="b6" data-v="V"><span class="dot" style="background:#4C9A2A"></span><span data-i18n="tree.green"></span></button>
+              <button class="b6" data-v="J"><span class="dot" style="background:#E8C51E"></span><span data-i18n="tree.yellow"></span></button>
+              <button class="b6" data-v="R"><span class="dot" style="background:#C0392B"></span><span data-i18n="tree.red"></span></button>
+            </div>
+          </div>
+          <div class="block">
+            <div class="lbl"><span class="txt" data-i18n="tree.b6"></span></div>
+            <div class="row" data-g="pourri">
+              <button class="b7" data-v="NON"><span data-i18n="common.no"></span></button>
+              <button class="b7" data-v="OUI"><span data-i18n="common.yes"></span></button>
+            </div>
+          </div>
+        </div>
+
+        <div class="block">
+          <div class="lbl"><span class="txt" data-i18n="tree.b7"></span><span class="help" data-fiche="ecorce">?</span></div>
+          <div class="row" data-g="ecorce">
+            <button class="b5" data-v="0">
+              <svg width="40" height="24" viewBox="0 0 40 24" aria-hidden="true"><path d="M3 12h34" stroke="#0B0E10" stroke-width="7" stroke-linecap="round" fill="none"/></svg>
+              <span data-i18n="tree.smooth"></span></button>
+            <button class="b5" data-v="1">
+              <svg width="40" height="24" viewBox="0 0 40 24" aria-hidden="true"><path d="M3 12h8q2-4 4 0h7q2-4 4 0h11" stroke="#0B0E10" stroke-width="5" stroke-linecap="round" fill="none"/></svg>
+              <span data-i18n="tree.bumps"></span></button>
+            <button class="b5" data-v="2">
+              <svg width="40" height="24" viewBox="0 0 40 24" aria-hidden="true"><path d="M3 12q2-5 4 0t4 0 4 0 4 0 4 0 4 0 4 0 4 0" stroke="#0B0E10" stroke-width="4" stroke-linecap="round" fill="none"/></svg>
+              <span data-i18n="tree.covered"></span></button>
+            <button class="b5" data-v="3">
+              <svg width="40" height="24" viewBox="0 0 40 24" aria-hidden="true"><path d="M3 12h11q3 8 6 0h8" stroke="#0B0E10" stroke-width="5" stroke-linecap="round" fill="none"/><path d="M29 12h8" stroke="#0B0E10" stroke-width="5" stroke-linecap="round"/></svg>
+              <span data-i18n="tree.hole"></span></button>
+          </div>
+        </div>
+      </div>
+
+      <button class="endrow" id="endrow"><span data-i18n="tree.endrow"></span></button>
+    </main>
+    <footer>
+      <button class="b-prev" id="prev">◀</button>
+      <button class="b-next" id="next"><span data-i18n="tree.next"></span><span class="s hidden" id="nextnote"></span></button>
+    </footer>
+  </div>
+
+  <!-- ============ ARBRE T3 ============ -->
+  <div class="scr hidden" id="scr-tree3">
+    <header class="t3">
+      <div class="addr" id="addr3"></div>
+      <div class="meta" style="margin-top:9px"><span data-i18n="t3.inventory"></span><span id="clock3"></span></div>
+    </header>
+    <main>
+      <div class="block">
+        <div class="lbl"><span class="txt" data-i18n="t3.what"></span></div>
+        <div class="row" data-g="sp">
+          <button class="b-sp" data-v="POMMIER"><span class="ic">🍎</span><span data-i18n="t3.apple"></span></button>
+          <button class="b-sp" data-v="POIRIER"><span class="ic">🍐</span><span data-i18n="t3.pear"></span></button>
+          <button class="b-sp" data-v="AUTRE"><span class="ic">🌳</span><span data-i18n="t3.other"></span></button>
+        </div>
+        <div class="row" data-g="sp">
+          <button class="b-sp low" data-v="MORT"><span class="ic">✕</span><span data-i18n="tree.dead"></span></button>
+          <button class="b-sp low" data-v="VIDE"><span class="ic">◯</span><span data-i18n="tree.empty"></span><span class="s" data-i18n="tree.empty_s"></span></button>
+        </div>
+      </div>
+      <div id="fr3" class="hidden">
+        <div class="block">
+          <div class="lbl"><span class="txt" data-i18n="t3.fruits"></span></div>
+          <div class="row" data-g="fr3">
+            <button class="b-fr" data-v="OUI"><span data-i18n="common.yes"></span><span class="s" data-i18n="t3.fruits_yes_s"></span></button>
+            <button class="b-fr" data-v="NON"><span data-i18n="common.no"></span><span class="s" data-i18n="t3.fruits_no_s"></span></button>
+          </div>
+        </div>
+      </div>
+      <button class="endrow" id="endrow3"><span data-i18n="t3.endrow"></span></button>
+    </main>
+    <footer>
+      <button class="b-prev" id="prev3">◀</button>
+      <button class="b-next" id="next3"><span data-i18n="tree.next"></span><span class="s hidden" id="nextnote3"></span></button>
+    </footer>
+  </div>
+
+  <!-- ============ ETAT DES DONNEES ============ -->
+  <div class="scr hidden" id="scr-data">
+    <div class="setup">
+      <h3 data-i18n="data.h"></h3>
+      <div id="datalist"></div>
+      <div id="datamsg"></div>
+      <h3 data-i18n="setup.tools"></h3>
+      <button class="tool" id="d-export"><span data-i18n="data.export_all"></span></button>
+      <button class="tool" id="d-copy"><span data-i18n="data.copy"></span></button>
+      <button class="tool" id="d-photos"><span data-i18n="data.export_photos"></span></button>
+      <button class="tool" id="d-demo"><span data-i18n="data.demo"></span></button>
+      <button class="tool" id="d-purge"><span data-i18n="data.purge_demo"></span></button>
+      <button class="go ready" id="d-back"><span data-i18n="common.back"></span></button>
+    </div>
+  </div>
+
+  <!-- ============ SUPERPOSITION ============ -->
+  <div class="ov" id="ov">
+    <div id="ovb"></div>
+    <button class="closeb" id="ovclose"><span data-i18n="common.close"></span></button>
+  </div>
+
+</div>
+<script src="app.js"></script>
+</body>
+</html>
