@@ -22,7 +22,7 @@
    1. CONSTANTES
    =================================================================== */
 
-const APP_VERSION = '1.0.0';
+const APP_VERSION = '1.1.0';
 const DB_NAME = 'orchard-scan';
 const DB_VER = 1;
 const REGISTRY_URL = 'rangs_registry_v2.csv';
@@ -33,6 +33,18 @@ const RECONTROLE_N = 30;       // §11
 const RECONTROLE_MIN_RATE = 80;
 const VOICE_MAX_S = 30;
 const DEMO_TERRAIN = 'TD';     // le jeu de démonstration ne touche jamais T1/T2/T3
+
+/* La passe identifie la CAMPAGNE, pas la révision d'une correction.
+   Elle est fixe du 8 au 25 août 2026 et ne bouge jamais : c'est elle qui
+   permettra, en 2027, de comparer le même arbre d'une année sur l'autre —
+   l'identifiant étant positionnel et immuable (§4.2).
+   Le numéro de révision d'une correction, lui, est porté par `version`,
+   qui s'incrémente à chaque nouvelle saisie sur la même position.
+   Le recontrôle est une passe distincte par définition (§4.3) : sans cela
+   ses lignes entreraient en collision avec les originales lors de la fusion,
+   qui déduplique sur arbre_id + passe, et l'une des deux serait écartée. */
+const CAMPAGNE = 'ETE_2026';
+const CAMPAGNE_RECONTROLE = CAMPAGNE + '_RECONTROLE';
 
 /* Double colonne : code ordinal pour calculer, libellé pour relire (§8).
    Les libellés d'export sont en français canonique quelle que soit la langue
@@ -306,6 +318,41 @@ const dbDel = (store, key) => idbReq(store, 'readwrite', s => s.delete(key));
 const dbIndexAll = (store, index, key) =>
   idbReq(store, 'readonly', s => s.index(index).getAll(key));
 
+/* Les toutes premières versions écrivaient passe = 1 (saisie) et 2 (recontrôle).
+   Ces lignes deviendraient des passes distinctes de ETE_2026 à la fusion, et
+   des données d'essai se retrouveraient comptées comme des relevés réels.
+   La migration les normalise une fois pour toutes. Elle est idempotente. */
+async function migrerPasseNumerique() {
+  if (await metaGet('migration_passe_campagne', false)) return 0;
+  const obs = await dbAll('observations');
+  let n = 0;
+  for (const o of obs) {
+    if (typeof o.passe === 'number') {
+      o.passe = o.passe === 2 ? CAMPAGNE_RECONTROLE : CAMPAGNE;
+      await dbPut('observations', o);
+      n++;
+    }
+  }
+  await metaSet('migration_passe_campagne', true);
+  return n;
+}
+
+/* Remise à zéro avant le premier jour de campagne.
+   Les essais se font sur de vrais numéros de rang : sans cela, T1-R01 resterait
+   marqué COMPLET et l'application le sauterait le 8 août. Détruit tout ce qui
+   a été saisi et rend au registre ses comptes d'origine. */
+async function reinitialiserCampagne() {
+  for (const o of await dbAll('observations')) await dbDel('observations', o.obs_id);
+  for (const m of await dbAll('medias')) await dbDel('medias', m.media_id);
+  for (const r of await dbAll('rangs')) await dbDel('rangs', r.key);
+  await metaSet('session', null);
+  await metaSet('dernier_export', null);
+  await metaSet('registry_loaded', false);
+  await loadRegistry();
+  session = null;
+  await refreshCounts();
+}
+
 async function metaGet(k, dflt) {
   const r = await dbGet('meta', k);
   return r === undefined ? dflt : r.v;
@@ -476,18 +523,70 @@ function obsToRow(o, rangStatut) {
     source: o.source,
     media_ref: o.media_ref
   };
-  return COLS.map(c => csvCell(rec[c])).join(';');
+  /* Valeurs brutes : l'échappement et l'assemblage appartiennent à
+     csvDocument, qui est le seul à savoir écrire un CSV. */
+  return COLS.map(c => rec[c]);
 }
 
 /* Le fichier commence par le BOM, puis « sep=; », puis les en-têtes.
    Ces deux premiers octets/lignes sont ce qui fait qu'Excel ouvre le fichier
    correctement au double-clic, quelle que soit la locale du poste (§8). */
+const CSV_SEP = ';';
+const CSV_EOL = '\r\n';
+const CSV_DIRECTIVE = 'sep=' + CSV_SEP;
+
+/* POINT UNIQUE DE GÉNÉRATION DE CSV.
+   Aucune autre fonction n'a le droit d'assembler un CSV : export de rang,
+   export complet, presse-papier et index des photos passent tous par ici.
+   Un seul endroit produit le BOM, la directive et les fins de ligne, donc
+   un seul endroit peut se tromper — et il est vérifié à l'exécution par
+   verifierFormatExport(). */
+function csvDocument(colonnes, lignesDeCellules) {
+  const out = [CSV_DIRECTIVE, colonnes.join(CSV_SEP)];
+  for (const cells of lignesDeCellules) out.push(cells.map(csvCell).join(CSV_SEP));
+  return '﻿' + out.join(CSV_EOL) + CSV_EOL;
+}
+
 function buildCsv(observations, statutByRang) {
-  const lines = ['sep=;', COLS.join(';')];
-  for (const o of observations) {
-    lines.push(obsToRow(o, statutByRang[o.rang_key] || 'EN_COURS'));
-  }
-  return '\uFEFF' + lines.join('\r\n') + '\r\n';
+  return csvDocument(COLS, observations.map(
+    o => obsToRow(o, statutByRang[o.rang_key] || 'EN_COURS')));
+}
+
+/* Auto-contr\u00F4le du format, ex\u00E9cutable depuis \u00C9TAT DES DONN\u00C9ES.
+   Reproduit les deux tests d'acceptation du \u00A712.1 sur les octets r\u00E9ellement
+   produits : le BOM qui prot\u00E8ge les accents, et la directive qui force le
+   d\u00E9coupage en colonnes quelle que soit la locale. Si l'un des deux tombe,
+   l'export n'existe plus, et il vaut mieux le savoir au bureau qu'au champ. */
+async function verifierFormatExport() {
+  const echantillon = csvDocument(
+    ['a', 'b'],
+    [['\u00C9CORCE', 'TROU, \u00C9CORCE PARTIE'], [0, null], ['a;b', 'x']]
+  );
+  const octets = new Uint8Array(await new Blob([echantillon]).arrayBuffer());
+  const lignes = echantillon.split(CSV_EOL);
+
+  /* Un \u00C8 correctement encod\u00E9 vaut C3 88. Doublement encod\u00E9 il devient
+     C3 83 (\u00C3) suivi d'autre chose : c'est la signature d'un fichier relu
+     en latin-1 puis r\u00E9\u00E9crit en UTF-8. On cherche donc l'un et pas l'autre. */
+  const paire = (a, b) => {
+    for (let i = 0; i < octets.length - 1; i++) {
+      if (octets[i] === a && octets[i + 1] === b) return true;
+    }
+    return false;
+  };
+
+  const controles = [
+    ['BOM UTF-8', octets[0] === 0xEF && octets[1] === 0xBB && octets[2] === 0xBF],
+    ['directive sep=;', lignes[0].replace('\uFEFF', '') === CSV_DIRECTIVE],
+    ['s\u00E9parateur point-virgule', lignes[1] === 'a;b'],
+    ['aucune virgule s\u00E9paratrice', !lignes[1].includes(',')],
+    ['fins de ligne CRLF', echantillon.endsWith(CSV_EOL) && !/[^\r]\n/.test(echantillon)],
+    ['accents encod\u00E9s une seule fois', paire(0xC3, 0x89) && !paire(0xC3, 0x83)],
+    ['virgule laiss\u00E9e telle quelle', lignes[2] === '\u00C9CORCE;TROU, \u00C9CORCE PARTIE'],
+    ['z\u00E9ro conserv\u00E9, vide en NULL', lignes[3] === '0;NULL'],
+    ['point-virgule interne \u00E9chapp\u00E9', lignes[4] === '"a;b";x']
+  ];
+  return { ok: controles.every(c => c[1]), controles: controles };
 }
 
 async function statutMap() {
@@ -853,7 +952,7 @@ async function startSession(terrain, rang, plan, position) {
     rang: rang,
     plan: plan || null,
     position: position || 1,
-    passe: 1,
+    passe: CAMPAGNE,
     mode: 'NORMAL',
     porte_greffe: '',
     ladder: {},
@@ -925,7 +1024,7 @@ async function rebuildLadder() {
   session.ladder = {};
   const obs = await dbIndexAll('observations', 'rang_key', rangKey(session.terrain, session.rang));
   const byPos = {};
-  obs.filter(o => o.passe === 1).forEach(o => {
+  obs.filter(o => o.passe === session.passe).forEach(o => {
     if (!byPos[o.position] || byPos[o.position].version < o.version) byPos[o.position] = o;
   });
   Object.keys(byPos).forEach(p => {
@@ -1250,7 +1349,7 @@ async function goPrev() {
 
 async function countRang() {
   const obs = await dbIndexAll('observations', 'rang_key', rangKey(session.terrain, session.rang));
-  return new Set(obs.filter(o => o.passe === 1).map(o => o.position)).size;
+  return new Set(obs.filter(o => o.passe === session.passe).map(o => o.position)).size;
 }
 
 async function openEndRow() {
@@ -1683,7 +1782,7 @@ async function monotonyBlocks() {
    sans jamais afficher la réponse précédente (§11). */
 async function openRecontrole() {
   const obs = (await dbAll('observations'))
-    .filter(o => o.passe === 1 && o.arbre_complet === 'OUI'
+    .filter(o => o.passe === CAMPAGNE && o.arbre_complet === 'OUI'
       && o.source === 'SAISIE' && o.terrain !== DEMO_TERRAIN);
   const byTree = {};
   obs.forEach(o => {
@@ -1725,7 +1824,7 @@ async function recoLoad(i) {
   recoState.i = i;
   session = {
     terrain: ref.terrain, rang: ref.rang, plan: null, position: ref.position,
-    passe: 2, mode: 'RECONTROLE', porte_greffe: '', ladder: {},
+    passe: CAMPAGNE_RECONTROLE, mode: 'RECONTROLE', porte_greffe: '', ladder: {},
     started_iso: nowIso()
   };
   S = {};                 // à l'aveugle : rien n'est pré-rempli
@@ -1838,6 +1937,7 @@ async function goData() {
   box.appendChild(dline(t('data.free_space'), space, 'sm'));
   box.appendChild(dline(t('data.persist'), persistGranted ? t('common.yes') : t('common.no'),
     persistGranted ? 'ok' : 'ko'));
+  box.appendChild(dline(t('data.campagne'), CAMPAGNE, 'sm'));
   box.appendChild(dline(t('data.version'), APP_VERSION, 'sm'));
   box.appendChild(dline(t('data.device'), PREF.deviceId + ' · ' + PREF.operateur, 'sm'));
   $('datamsg').innerHTML = '';
@@ -1874,7 +1974,7 @@ async function loadDemo() {
       obs_id: uid(),
       arbre_id: arbreId(DEMO_TERRAIN, 1, p),
       rang_key: key, terrain: DEMO_TERRAIN, rang: 1, position: p,
-      hors_plan: 'NON', passe: 1, version: 1, charge_mode: 'PALIER',
+      hors_plan: 'NON', passe: CAMPAGNE, version: 1, charge_mode: 'PALIER',
       etat: etat,
       autre_type: null, autre_fruit: null, espece: null,
       tronc: alive ? pick(['F', 'M', 'G']) : null,
@@ -1908,17 +2008,18 @@ async function purgeDemo() {
 async function exportPhotos() {
   const medias = (await dbAll('medias'));
   if (!medias.length) return dataMsg('data.no_photos', true);
-  const lines = ['sep=;', 'media_id;type;fichier;terrain;rang;position;lat;lon;precision_m;horodatage_iso'];
+  const colonnes = ['media_id', 'type', 'fichier', 'terrain', 'rang', 'position',
+    'lat', 'lon', 'precision_m', 'horodatage_iso'];
+  const lignes = [];
   for (const m of medias) {
-    lines.push([m.media_id, m.type, m.filename, m.terrain, m.rang, m.position,
-      m.lat === null || m.lat === undefined ? NULLV : m.lat,
-      m.lon === null || m.lon === undefined ? NULLV : m.lon,
-      m.acc === null || m.acc === undefined ? NULLV : Math.round(m.acc),
-      m.horodatage_iso].map(csvCell).join(';'));
+    lignes.push([m.media_id, m.type, m.filename, m.terrain, m.rang, m.position,
+      m.lat, m.lon,
+      m.acc === null || m.acc === undefined ? null : Math.round(m.acc),
+      m.horodatage_iso]);
     downloadBlob(m.filename, m.blob);
   }
   download('PHOTOS_' + (PREF.operateur || PREF.deviceId) + '_' + stampLocal() + '.csv',
-    '\uFEFF' + lines.join('\r\n') + '\r\n');
+    csvDocument(colonnes, lignes));
   dataMsg('fin.exported', false, { f: medias.length + ' + index' });
 }
 
@@ -1981,6 +2082,38 @@ function wireButtons() {
     } catch (e) {
       dataMsg('data.copy_failed', true);
     }
+  });
+  $('d-reset').addEventListener('click', async () => {
+    const { trees } = await refreshCounts();
+    openOv(root => {
+      root.appendChild(el('h2', null, t('data.reset_h')));
+      const m = el('div', 'msg bad');
+      m.textContent = t('data.reset_warn', { n: trees });
+      root.appendChild(m);
+      root.appendChild(bigButton('data.reset_confirm', null, async () => {
+        await reinitialiserCampagne();
+        closeOv();
+        dataMsg('data.reset_done', false);
+        await goDataRefresh();
+      }, 'border-color:var(--red);color:var(--red)'));
+      root.appendChild(bigButton('common.cancel', null, closeOv));
+    });
+  });
+  $('d-verif').addEventListener('click', async () => {
+    const r = await verifierFormatExport();
+    openOv(root => {
+      root.appendChild(el('h2', null, t('data.verif_h')));
+      r.controles.forEach(([nom, ok]) => {
+        const d = el('div', 'dl');
+        d.appendChild(el('span', 'k', nom));
+        d.appendChild(el('span', 'v ' + (ok ? 'ok' : 'ko'), ok ? '✓' : '✗'));
+        root.appendChild(d);
+      });
+      const m = el('div', r.ok ? 'msg good' : 'msg bad');
+      m.textContent = r.ok ? t('data.verif_ok') : t('data.verif_ko');
+      m.style.marginTop = '12px';
+      root.appendChild(m);
+    });
   });
   $('d-photos').addEventListener('click', exportPhotos);
   $('d-demo').addEventListener('click', () => {
@@ -2061,6 +2194,8 @@ async function boot() {
   } catch (e) {
     toast('err.registry', true);
   }
+
+  await migrerPasseNumerique();
 
   await refreshCounts();
 

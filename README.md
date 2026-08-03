@@ -161,6 +161,56 @@ fichiers fusionnables. La langue de saisie est tracée par la colonne
 | `source` | distingue `SAISIE`, `RECONTROLE` et `DEMO` |
 | `media_ref` | rattache une note vocale de 30 s à sa ligne |
 
+### `passe` et `version` — deux choses distinctes
+
+| colonne | rôle | valeurs |
+|---|---|---|
+| `passe` | **identifie la campagne**, fixe du 8 au 25 août 2026 | `ETE_2026`, `ETE_2026_RECONTROLE` |
+| `version` | numéro de révision d'une correction sur le même arbre | `1`, `2`, `3`… |
+
+`passe` ne bouge jamais pendant la campagne. C'est elle qui permettra, en 2027,
+de comparer le même arbre d'une année sur l'autre — l'identifiant étant
+positionnel et immuable. Corriger un arbre n'incrémente que `version` ; la
+saisie précédente reste dans la base et part dans `doublons.csv` à la fusion.
+
+Le recontrôle est une passe distincte par définition (§4.3) : sans cela ses
+lignes entreraient en collision avec les originales lors de la fusion, qui
+déduplique sur `arbre_id + passe`, et l'une des deux serait écartée.
+
+### Ne jamais ré-enregistrer un CSV exporté
+
+Ouvrir le fichier dans Excel pour le regarder ne pose aucun problème. **Le
+sauvegarder depuis Excel le détruit.**
+
+Excel ré-émet la directive `sep=` avec le séparateur courant, ce qui donne une
+première ligne `sep=,,,,,,,…` (une virgule par colonne), et « CSV (séparateur
+point-virgule) » réécrit les accents en latin-1 : `ÉCORCE` devient `ESPÃCE`.
+Le fichier reste ouvrable mais n'est plus fusionnable.
+
+Règle : **on copie les fichiers, on ne les ouvre-puis-sauvegarde jamais.**
+Pour travailler dessus, faire d'abord une copie de travail.
+
+En cas de doute sur un fichier, ses 3 premiers octets doivent être
+`EF BB BF` et sa première ligne exactement `sep=;`.
+
+### Vérifier le format sur le téléphone
+
+**ÉTAT DES DONNÉES → VÉRIFIER LE FORMAT D'EXPORT** rejoue les deux tests
+d'acceptation du §12.1 sur les octets réellement produits par l'appareil :
+BOM, directive, séparateur, fins de ligne, encodage des accents, échappement.
+Neuf contrôles, à faire avant de partir au champ.
+
+Toute génération de CSV — export de rang, export complet, presse-papier, index
+des photos — passe par une seule fonction, `csvDocument()`. C'est le seul
+endroit du code qui écrit un octet de CSV.
+
+### Avant le premier vrai relevé
+
+Les essais se font sur de vrais numéros de rang. **ÉTAT DES DONNÉES → REMISE À
+ZÉRO AVANT CAMPAGNE** efface tout et rend au registre ses 88 rangs neufs et ses
+2 980 positions. Sans ça, un rang d'essai reste marqué terminé et l'application
+le sautera le 8 août.
+
 ### `rang_statut`
 
 | valeur | signification |

@@ -97,11 +97,13 @@ def recence(ligne):
 
 
 def cle_tri(ligne):
+    # `passe` est un identifiant de campagne (ETE_2026), pas un entier :
+    # il se trie comme une chaine. Le numero de revision, lui, est `version`.
     return (
         str(ligne.get("terrain", "")),
         entier(ligne.get("rang"), 0),
         entier(ligne.get("position"), 0),
-        entier(ligne.get("passe"), 0),
+        str(ligne.get("passe", "")),
     )
 
 
