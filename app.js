@@ -2207,7 +2207,12 @@ async function boot() {
   }
 
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('service-worker.js').catch(() => { /* hors ligne */ });
+    /* updateViaCache: 'none' — le script du service worker lui-même ne doit
+       jamais venir du cache HTTP, sinon une correction resterait invisible
+       jusqu'à l'expiration du max-age. */
+    navigator.serviceWorker.register('service-worker.js', { updateViaCache: 'none' })
+      .then(reg => reg.update())
+      .catch(() => { /* hors ligne : la version en cache fait le travail */ });
   }
 }
 

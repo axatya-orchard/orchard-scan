@@ -43,8 +43,11 @@ self.addEventListener('install', (ev) => {
     caches.open(CACHE)
       /* Un asset manquant ne doit pas faire échouer toute l'installation :
          mieux vaut une application installée à laquelle il manque une photo
-         qu'une application qui refuse de s'installer. */
-      .then(c => Promise.allSettled(SHELL.map(u => c.add(u))))
+         qu'une application qui refuse de s'installer.
+         Le précache passe lui aussi par une requête conditionnelle, sinon il
+         réinstallerait la version périmée que le cache HTTP vient de servir. */
+      .then(c => Promise.allSettled(SHELL.map(u =>
+        fetch(new Request(u, { cache: 'no-cache' })).then(r => r.ok && c.put(u, r)))))
       .then(() => self.skipWaiting())
   );
 });
@@ -57,10 +60,18 @@ self.addEventListener('activate', (ev) => {
   );
 });
 
+/* « cache: no-cache » force une requête conditionnelle : le navigateur envoie
+   son ETag et GitHub Pages répond 304 si le fichier n'a pas bougé, contenu
+   complet s'il a été écrasé. Sans ce réglage, fetch() se sert dans le cache
+   HTTP du navigateur — GitHub Pages envoie Cache-Control: max-age=600 — et
+   pendant dix minutes le « réseau d'abord » ne voit jamais le réseau : il
+   récupère l'ancien fichier et le re-stocke. Une mise à jour de l'application,
+   ou une photo d'écorce remplacée, restait invisible.
+   Ce n'est pas un rechargement forcé : un fichier inchangé coûte un 304. */
 function fromNetwork(request, timeoutMs) {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error('timeout')), timeoutMs);
-    fetch(request).then(
+    fetch(request, { cache: 'no-cache' }).then(
       res => { clearTimeout(timer); resolve(res); },
       err => { clearTimeout(timer); reject(err); }
     );
