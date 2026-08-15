@@ -22,7 +22,7 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = __dirname;
-const LANGS = ['fr', 'en'];
+const LANGS = ['fr', 'en', 'ru'];
 const errors = [];
 const warnings = [];
 
@@ -63,15 +63,21 @@ for (const k of keys) {
 
 const placeholders = (s) => (String(s).match(/\{[a-z0-9_]+\}/gi) || []).sort().join(',');
 
+/* Le français fait référence : chaque langue doit porter exactement les mêmes
+   marqueurs. Une traduction qui perd son {n} affiche un écran privé de son
+   chiffre, sans lever la moindre exception au champ. */
 for (const k of keys) {
   const e = dict[k];
   if (!e || typeof e !== 'object') continue;
   if (!LANGS.every(l => typeof e[l] === 'string')) continue;
-  const a = placeholders(e.fr);
-  const b = placeholders(e.en);
-  if (a !== b) {
-    errors.push('« ' + k + ' » : marqueurs différents entre les langues — fr [' + a
-      + '] contre en [' + b + '].');
+  const ref = placeholders(e.fr);
+  for (const l of LANGS) {
+    if (l === 'fr') continue;
+    const got = placeholders(e[l]);
+    if (got !== ref) {
+      errors.push('« ' + k + ' » : marqueurs différents — fr [' + ref
+        + '] contre ' + l + ' [' + got + '].');
+    }
   }
 }
 
@@ -120,5 +126,5 @@ if (errors.length) {
   process.exit(1);
 }
 
-console.log('\nOK — les deux langues sont complètes et cohérentes.');
+console.log('\nOK — les ' + LANGS.length + ' langues sont complètes et cohérentes.');
 process.exit(0);

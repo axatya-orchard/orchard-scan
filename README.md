@@ -109,6 +109,28 @@ démonstration à filtrer.
 python merge.py exemples_export
 ```
 
+## 5 bis. Un nouvel opérateur russophone
+
+L'application est en **français, anglais et russe**. Le choix se fait au
+premier écran et se change à tout moment sans rien perdre.
+
+Pour équiper un troisième téléphone, refaites simplement les étapes 2 et 3 :
+même URL, installer, rouvrir par l'icône, saisir le prénom. Chaque appareil
+génère son propre `device_id`, qui est l'identifiant réel de l'opérateur dans
+l'export — le prénom n'est qu'une étiquette lisible.
+
+Le prénom peut s'écrire en cyrillique : il est translittéré à l'enregistrement
+(`Зураб` → `ZURAB`) pour que les noms de fichier restent lisibles partout.
+
+**Rien ne change pour le travail hors ligne.** L'opérateur passe la journée
+sans réseau : chaque tap est écrit sur le téléphone, et un CSV est déposé
+automatiquement dans les Téléchargements à chaque fin de rang. Le retour au
+Wi-Fi ne sert qu'à récupérer les fichiers — l'application ne synchronise rien
+et n'a besoin d'aucun réseau pour fonctionner. Il n'y a donc jamais de file
+d'attente à vider ni de risque d'échec d'envoi.
+
+Au retour, brancher le téléphone ou copier le dossier `Download`, puis §5.
+
 ## 6. Vérifier les traductions avant déploiement
 
 ```bash
@@ -151,6 +173,12 @@ Les libellés d'export sont **toujours en français**, quelle que soit la langue
 de l'interface : deux appareils réglés différemment doivent produire des
 fichiers fusionnables. La langue de saisie est tracée par la colonne
 `langue_saisie`.
+
+C'est ce qui permet à un opérateur russophone et à un opérateur francophone de
+produire des fichiers qui fusionnent sans retouche : **aucun caractère
+cyrillique n'entre jamais dans le CSV.** Le prénom lui-même est translittéré
+(`Зураб` → `ZURAB`), pour que les noms de fichier restent en ASCII et
+survivent au passage sur un poste Windows.
 
 ### Colonnes ajoutées au-delà du minimum demandé
 

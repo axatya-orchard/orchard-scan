@@ -17,7 +17,7 @@
    une stratégie « revalidation en arrière-plan » l'aurait servie encore une
    fois de plus. Ni l'une ni l'autre ne passe le test d'acceptation n° 7. */
 
-const CACHE = 'orchard-scan-v2';
+const CACHE = 'orchard-scan-v3';
 const NET_TIMEOUT_MS = 2500;
 
 const SHELL = [

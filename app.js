@@ -22,7 +22,7 @@
    1. CONSTANTES
    =================================================================== */
 
-const APP_VERSION = '1.1.0';
+const APP_VERSION = '1.2.0';
 const DB_NAME = 'orchard-scan';
 const DB_VER = 1;
 const REGISTRY_URL = 'rangs_registry_v2.csv';
@@ -149,13 +149,29 @@ function stampLocal(d) {
     + '_' + pad(d.getHours(), 2) + pad(d.getMinutes(), 2);
 }
 
+/* Translittération cyrillique → latin. Le prénom entre dans le nom des
+   fichiers déposés (T1_R07_ZURAB_….csv) : le laisser en cyrillique donnerait
+   des noms illisibles ou tronqués au passage sur un poste Windows, alors que
+   le nommage doit rester strict. Sans cette table, un prénom entièrement en
+   cyrillique était réduit à une chaîne vide et le bouton ENREGISTRER restait
+   gris — l'opérateur ne pouvait pas démarrer. */
+const TRANSLIT_CYR = {
+  А: 'A', Б: 'B', В: 'V', Г: 'G', Д: 'D', Е: 'E', Ё: 'E', Ж: 'ZH', З: 'Z',
+  И: 'I', Й: 'Y', К: 'K', Л: 'L', М: 'M', Н: 'N', О: 'O', П: 'P', Р: 'R',
+  С: 'S', Т: 'T', У: 'U', Ф: 'F', Х: 'KH', Ц: 'TS', Ч: 'CH', Ш: 'SH',
+  Щ: 'SHCH', Ъ: '', Ы: 'Y', Ь: '', Э: 'E', Ю: 'YU', Я: 'YA'
+};
+
 /* Normalisation du prénom : majuscules, accents retirés, espaces coupés (§5.1).
    « Axatya » et « axatia » restent deux étiquettes différentes, mais c'est le
    device_id qui identifie réellement l'opérateur dans l'export. */
 function normName(s) {
-  return String(s || '')
+  const majuscules = String(s || '').toUpperCase();
+  let latin = '';
+  for (const c of majuscules) latin += (c in TRANSLIT_CYR) ? TRANSLIT_CYR[c] : c;
+  return latin
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-    .toUpperCase().replace(/[^A-Z0-9]+/g, ' ').trim().replace(/\s+/g, '_');
+    .replace(/[^A-Z0-9]+/g, ' ').trim().replace(/\s+/g, '_');
 }
 
 function buzz() { if (navigator.vibrate) { try { navigator.vibrate(30); } catch (e) { /* sans effet */ } } }

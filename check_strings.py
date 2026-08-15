@@ -14,7 +14,7 @@ import re
 import sys
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
-LANGS = ("fr", "en")
+LANGS = ("fr", "en", "ru")
 errors = []
 warnings = []
 
@@ -56,17 +56,24 @@ def placeholders(s):
     return ",".join(sorted(PH.findall(str(s))))
 
 
+# Le francais fait reference : chaque langue doit porter les memes marqueurs.
+# Une traduction qui perd son {n} affiche un ecran prive de son chiffre, sans
+# lever la moindre exception au champ.
 for k in keys:
     e = dico[k]
     if not isinstance(e, dict):
         continue
     if not all(isinstance(e.get(l), str) for l in LANGS):
         continue
-    a, b = placeholders(e["fr"]), placeholders(e["en"])
-    if a != b:
-        errors.append(
-            "« %s » : marqueurs differents entre les langues — fr [%s] contre en [%s]." % (k, a, b)
-        )
+    ref = placeholders(e["fr"])
+    for l in LANGS:
+        if l == "fr":
+            continue
+        got = placeholders(e[l])
+        if got != ref:
+            errors.append(
+                "« %s » : marqueurs differents — fr [%s] contre %s [%s]." % (k, ref, l, got)
+            )
 
 # --- 4. cles referencees par le code --------------------------------------
 
@@ -112,5 +119,5 @@ if errors:
         print("  x %s" % e, file=sys.stderr)
     sys.exit(1)
 
-print("\nOK — les deux langues sont completes et coherentes.")
+print("\nOK — les %d langues sont completes et coherentes." % len(LANGS))
 sys.exit(0)
