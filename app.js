@@ -22,9 +22,9 @@
    1. CONSTANTES
    =================================================================== */
 
-const APP_VERSION = '1.2.0';
+const APP_VERSION = '1.3.0';
 const DB_NAME = 'orchard-scan';
-const DB_VER = 1;
+const DB_VER = 2;
 const REGISTRY_URL = 'rangs_registry_v2.csv';
 const EXPORT_ALERT_MIN = 45;   // §2.2
 const FAST_ENTRY_S = 4;        // §8 flag_qc RAPIDE
@@ -45,6 +45,12 @@ const DEMO_TERRAIN = 'TD';     // le jeu de démonstration ne touche jamais T1/T
    qui déduplique sur arbre_id + passe, et l'une des deux serait écartée. */
 const CAMPAGNE = 'ETE_2026';
 const CAMPAGNE_RECONTROLE = CAMPAGNE + '_RECONTROLE';
+const CAMPAGNE_ENTRAINEMENT = CAMPAGNE + '_ENTRAINEMENT';
+
+/* Entraînement d'un nouvel opérateur : il refait les 4 premiers rangs déjà
+   relevés par quelqu'un d'expérimenté, à l'aveugle, et on compare. */
+const ENTRAINEMENT_RANGS = 4;
+const ENTRAINEMENT_SEUIL = 80;   // en dessous, la variable est à retravailler
 
 /* Double colonne : code ordinal pour calculer, libellé pour relire (§8).
    Les libellés d'export sont en français canonique quelle que soit la langue
@@ -311,6 +317,14 @@ function openDB() {
       if (!d.objectStoreNames.contains('meta')) {
         d.createObjectStore('meta', { keyPath: 'k' });
       }
+      /* Les relevés de référence importés vivent dans leur propre magasin,
+         jamais dans `observations` : c'est ce qui garantit qu'ils ne peuvent
+         pas ressortir dans un export et être recomptés comme du travail de
+         cet appareil. Ils servent de corrigé, rien d'autre. */
+      if (!d.objectStoreNames.contains('reference')) {
+        d.createObjectStore('reference', { keyPath: 'arbre_id' })
+          .createIndex('rang_key', 'rang_key');
+      }
     };
     rq.onsuccess = () => resolve(rq.result);
     rq.onerror = () => reject(rq.error);
@@ -409,8 +423,11 @@ function refreshGates() {
    6. REGISTRE DES RANGS (§4.1)
    =================================================================== */
 
-/* rangs_registry_v2.csv : séparateur virgule, UTF-8 sans BOM. */
-function parseCsvComma(text) {
+/* Deux fichiers entrent dans l'application, avec des séparateurs différents :
+   rangs_registry_v2.csv est en virgule (§4.1), un export réimporté comme
+   corrigé d'entraînement est en point-virgule. Le BOM et la directive sep=
+   sont avalés dans les deux cas. */
+function parseCsvDelim(text, sep) {
   const rows = [];
   let row = [], field = '', quoted = false;
   text = text.replace(/^\uFEFF/, '');
@@ -420,13 +437,17 @@ function parseCsvComma(text) {
       if (c === '"') { if (text[i + 1] === '"') { field += '"'; i++; } else quoted = false; }
       else field += c;
     } else if (c === '"') quoted = true;
-    else if (c === ',') { row.push(field); field = ''; }
+    else if (c === sep) { row.push(field); field = ''; }
     else if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
     else if (c !== '\r') field += c;
   }
   if (field !== '' || row.length) { row.push(field); rows.push(row); }
-  return rows.filter(r => r.length > 1 || (r[0] || '').trim() !== '');
+  const nettes = rows.filter(r => r.length > 1 || (r[0] || '').trim() !== '');
+  if (nettes.length && /^sep=/i.test((nettes[0][0] || '').trim())) nettes.shift();
+  return nettes;
 }
+
+const parseCsvComma = (text) => parseCsvDelim(text, ',');
 
 async function loadRegistry() {
   const already = await metaGet('registry_loaded', false);
@@ -756,7 +777,8 @@ function newObsRecord() {
     device_id: PREF.deviceId,
     app_version: APP_VERSION,
     langue_saisie: LANG,
-    source: session.mode === 'RECONTROLE' ? 'RECONTROLE' : 'SAISIE',
+    source: session.mode === 'RECONTROLE' ? 'RECONTROLE'
+      : session.mode === 'ENTRAINEMENT' ? 'ENTRAINEMENT' : 'SAISIE',
     media_ref: null
   };
 }
@@ -996,6 +1018,19 @@ async function resumeSession() {
     await metaSet('session', null);
     return goHome();
   }
+  /* Un entraînement, si : c'est une centaine d'arbres, la liste est ordonnée
+     et sauvegardée, la perdre pour une batterie vide serait absurde. */
+  if (s.mode === 'ENTRAINEMENT') {
+    const t = await metaGet('entrainement', null);
+    if (!t || !t.ids || !t.ids.length) {
+      await metaSet('session', null);
+      return goHome();
+    }
+    trainState = t;
+    await wakeOn();
+    await trainLoad(trainState.i);
+    return show('scr-tree');
+  }
   session = s;
   await rebuildLadder();
   await wakeOn();
@@ -1087,16 +1122,19 @@ function paintTree() {
 
   $('hdr').classList.toggle('hors', !!hors);
   $('hint').textContent = hors ? '⚠ ' + t('tree.hors')
-    : (session.mode === 'RECONTROLE'
+    : session.mode === 'RECONTROLE'
       ? t('qc.reco_running', { i: recoState.i + 1, n: recoState.ids.length })
-      : [PREF.operateur, session.porte_greffe].filter(Boolean).join(' · '));
+      : session.mode === 'ENTRAINEMENT'
+        ? t('train.running', { i: trainState.i + 1, n: trainState.ids.length })
+        : [PREF.operateur, session.porte_greffe].filter(Boolean).join(' · ');
 
-  /* En recontrôle les arbres sont tirés au hasard : une réglette de
-     progression n'aurait aucun sens, et TERMINER CE RANG non plus. */
-  const reco = session.mode === 'RECONTROLE';
-  $('ladder').classList.toggle('hidden', reco);
-  if (!reco) paintLadder();
-  $('endrow').classList.toggle('hidden', reco);
+  /* En recontrôle et en entraînement, c'est l'application qui décide de
+     l'arbre suivant : une réglette de progression du rang n'aurait pas de
+     sens, et TERMINER CE RANG non plus. */
+  const guide = session.mode === 'RECONTROLE' || session.mode === 'ENTRAINEMENT';
+  $('ladder').classList.toggle('hidden', guide);
+  if (!guide) paintLadder();
+  $('endrow').classList.toggle('hidden', guide);
 
   ['etat', 'tronc', 'arch', 'fruits', 'couleur', 'pourri', 'ecorce']
     .forEach(g => markGroup(g, S[g] || null));
@@ -1333,6 +1371,7 @@ async function goNext() {
   buzz();
 
   if (session.mode === 'RECONTROLE') return recoNext();
+  if (session.mode === 'ENTRAINEMENT') return trainNext();
 
   session.ladder[session.position] = S.etat === 'MORT' ? 'dead' : 'done';
 
@@ -1827,6 +1866,298 @@ async function openRecontrole() {
   });
 }
 
+/* ===================================================================
+   MODE ENTRAÎNEMENT (nouvel opérateur)
+
+   Le stagiaire refait les 4 premiers rangs déjà relevés par un opérateur
+   expérimenté, dans l'ordre, à l'aveugle. À la fin, le responsable obtient
+   un taux de concordance par variable et la liste des arbres à revoir
+   ensemble — c'est cette liste qui sert à former, pas le pourcentage.
+
+   Le corrigé vient d'un export réimporté : le téléphone d'un nouvel arrivant
+   est vide, il n'a aucun relevé auquel se comparer.
+   =================================================================== */
+
+/* Les exports portent des codes ordinaux ; l'application travaille avec des
+   clés internes. On reconstruit la correspondance inverse à partir de MAP,
+   pour n'avoir qu'une seule table à maintenir. */
+function fromCode(mapName, code) {
+  const c = String(code).trim();
+  if (c === '' || c === NULLV) return null;
+  const table = MAP[mapName];
+  for (const cle in table) {
+    if (String(table[cle].code) === c) return cle;
+  }
+  return null;
+}
+
+const VARS_COMPAREES = [
+  ['etat', 'qc.var_etat'], ['tronc', 'qc.var_tronc'], ['arch', 'qc.var_arch'],
+  ['fruits', 'qc.var_fruits'], ['couleur', 'qc.var_couleur'],
+  ['pourri', 'qc.var_pourri'], ['ecorce', 'qc.var_ecorce']
+];
+
+/* Importe un export ORCHARD-SCAN comme corrigé. On ne garde qu'une ligne par
+   arbre, la plus récente : c'est la même règle que merge.py, pour que le
+   corrigé soit exactement ce que l'analyste retiendrait. */
+async function importerReference(file) {
+  const texte = await file.text();
+  const rows = parseCsvDelim(texte, ';');
+  if (rows.length < 2) throw new Error('vide');
+  const head = rows[0].map(h => h.trim());
+  const idx = {};
+  head.forEach((h, i) => { idx[h] = i; });
+  if (idx.arbre_id === undefined || idx.etat_code === undefined) throw new Error('colonnes');
+
+  const cell = (r, nom) => (idx[nom] === undefined ? '' : (r[idx[nom]] || '').trim());
+  const meilleur = {};
+  for (let i = 1; i < rows.length; i++) {
+    const r = rows[i];
+    const id = cell(r, 'arbre_id');
+    if (!id || id === NULLV) continue;
+    const source = cell(r, 'source');
+    if (source === 'DEMO' || source === 'ENTRAINEMENT') continue;
+    if (cell(r, 'terrain') === DEMO_TERRAIN) continue;
+    const h = cell(r, 'horodatage_iso');
+    if (meilleur[id] && meilleur[id].h >= h) continue;
+    meilleur[id] = {
+      h: h,
+      rec: {
+        arbre_id: id,
+        rang_key: rangKey(cell(r, 'terrain'), parseInt(cell(r, 'rang'), 10) || 0),
+        terrain: cell(r, 'terrain'),
+        rang: parseInt(cell(r, 'rang'), 10) || 0,
+        position: parseInt(cell(r, 'position'), 10) || 0,
+        etat: fromCode('etat', cell(r, 'etat_code')),
+        tronc: fromCode('tronc', cell(r, 'tronc_code')),
+        arch: fromCode('arch', cell(r, 'arch_code')),
+        fruits: fromCode('fruits', cell(r, 'fruits_code')),
+        couleur: fromCode('couleur', cell(r, 'couleur_code')),
+        pourri: fromCode('pourri', cell(r, 'pourri_code')),
+        ecorce: fromCode('ecorce', cell(r, 'ecorce_code')),
+        operateur_label: cell(r, 'operateur_label'),
+        horodatage_iso: h
+      }
+    };
+  }
+
+  const anciens = await dbAll('reference');
+  for (const a of anciens) await dbDel('reference', a.arbre_id);
+  let n = 0;
+  for (const id in meilleur) {
+    /* Le Terrain 3 ne porte pas de diagnostic : rien à comparer. */
+    if (meilleur[id].rec.terrain === 'T3') continue;
+    await dbPut('reference', meilleur[id].rec);
+    n++;
+  }
+  await metaSet('reference_importee_le', nowIso());
+  return n;
+}
+
+/* Les 4 premiers rangs présents dans le corrigé, dans l'ordre du terrain
+   puis du rang — le stagiaire les parcourt physiquement. */
+async function rangsEntrainement() {
+  const ref = await dbAll('reference');
+  const parRang = {};
+  ref.forEach(r => {
+    parRang[r.rang_key] = parRang[r.rang_key] || { key: r.rang_key, terrain: r.terrain, rang: r.rang, arbres: [] };
+    parRang[r.rang_key].arbres.push(r);
+  });
+  const rangs = Object.values(parRang)
+    .sort((a, b) => a.terrain.localeCompare(b.terrain) || a.rang - b.rang)
+    .slice(0, ENTRAINEMENT_RANGS);
+  rangs.forEach(r => r.arbres.sort((a, b) => a.position - b.position));
+  return rangs;
+}
+
+async function openEntrainement() {
+  const rangs = await rangsEntrainement();
+  if (!rangs.length) return toast('train.aucune_reference', true);
+  const total = rangs.reduce((s, r) => s + r.arbres.length, 0);
+  const libelle = rangs.map(r => r.terrain + '-R' + pad(r.rang, 2)).join(' · ');
+
+  openOv(root => {
+    root.appendChild(el('h2', null, t('train.h')));
+    const m = el('div', 'msg');
+    m.textContent = t('train.intro', { n: total, rangs: libelle });
+    root.appendChild(m);
+    root.appendChild(bigButton('train.start', null, () => {
+      closeOv();
+      startEntrainement(rangs);
+    }, 'border-color:var(--green);color:var(--green)'));
+    root.appendChild(bigButton('common.cancel', null, closeOv));
+  });
+}
+
+let trainState = null;
+
+async function startEntrainement(rangs) {
+  if (!persistGranted) return;
+  const ids = [];
+  rangs.forEach(r => r.arbres.forEach(a => ids.push(a.arbre_id)));
+  trainState = { ids: ids, i: 0, answers: [], debut_iso: nowIso() };
+  await metaSet('entrainement', trainState);
+  await trainLoad(0);
+  await wakeOn();
+  show('scr-tree');
+}
+
+async function trainLoad(i) {
+  const ref = await dbGet('reference', trainState.ids[i]);
+  trainState.i = i;
+  session = {
+    terrain: ref.terrain, rang: ref.rang, plan: null, position: ref.position,
+    passe: CAMPAGNE_ENTRAINEMENT, mode: 'ENTRAINEMENT', porte_greffe: '', ladder: {},
+    started_iso: nowIso()
+  };
+  S = {};                 // à l'aveugle : le corrigé n'est jamais montré
+  curObsId = null;
+  baseVersion = 0;
+  t0 = Date.now();
+  await saveSession();
+  await metaSet('entrainement', trainState);
+  paintTree();
+}
+
+async function trainNext() {
+  trainState.answers.push({ id: trainState.ids[trainState.i], got: Object.assign({}, S) });
+  await metaSet('entrainement', trainState);
+  if (trainState.i + 1 < trainState.ids.length) {
+    await trainLoad(trainState.i + 1);
+    window.scrollTo(0, 0);
+    return;
+  }
+  session = null;
+  await metaSet('session', null);
+  wakeOff();
+  await refreshCounts();
+  await showTrainResult();
+}
+
+/* Statistiques et, surtout, la liste des arbres à revoir. Un pourcentage ne
+   forme personne ; un arbre qu'on va regarder ensemble, si. */
+async function comparerEntrainement() {
+  const stats = {};
+  VARS_COMPAREES.forEach(([k]) => { stats[k] = { ok: 0, tot: 0 }; });
+  const lignes = [];
+  const parArbre = {};
+
+  for (const a of trainState.answers) {
+    const ref = await dbGet('reference', a.id);
+    if (!ref) continue;
+    for (const [k] of VARS_COMPAREES) {
+      if (ref[k] === null || ref[k] === undefined) continue;
+      const attendu = ref[k];
+      const donne = a.got[k] === undefined ? null : a.got[k];
+      const accord = attendu === donne;
+      stats[k].tot++;
+      if (accord) stats[k].ok++;
+      lignes.push({
+        arbre_id: a.id, terrain: ref.terrain, rang: ref.rang, position: ref.position,
+        variable: k, reference: attendu, stagiaire: donne, accord: accord
+      });
+      if (!accord) {
+        parArbre[a.id] = parArbre[a.id] || { arbre_id: a.id, terrain: ref.terrain, rang: ref.rang, position: ref.position, ecarts: [] };
+        parArbre[a.id].ecarts.push({ variable: k, reference: attendu, stagiaire: donne });
+      }
+    }
+  }
+  const aRevoir = Object.values(parArbre).sort(
+    (x, y) => y.ecarts.length - x.ecarts.length
+      || x.terrain.localeCompare(y.terrain) || x.rang - y.rang || x.position - y.position);
+  return { stats: stats, lignes: lignes, aRevoir: aRevoir };
+}
+
+function libelleValeur(variable, cle) {
+  if (cle === null || cle === undefined) return NULLV;
+  const table = MAP[variable];
+  return (table && table[cle]) ? table[cle].label : String(cle);
+}
+
+async function showTrainResult() {
+  const r = await comparerEntrainement();
+  const totalOk = Object.values(r.stats).reduce((s, v) => s + v.ok, 0);
+  const totalTot = Object.values(r.stats).reduce((s, v) => s + v.tot, 0);
+  const global = totalTot ? Math.round(100 * totalOk / totalTot) : 0;
+
+  openOv(root => {
+    root.appendChild(el('h2', null, t('train.result_h')));
+
+    const g = el('div', global >= ENTRAINEMENT_SEUIL ? 'msg good' : 'msg bad');
+    g.textContent = t('train.global', { pct: global, ok: totalOk, tot: totalTot });
+    root.appendChild(g);
+
+    VARS_COMPAREES.forEach(([k, lk]) => {
+      const s = r.stats[k];
+      if (!s.tot) return;
+      const pct = Math.round(100 * s.ok / s.tot);
+      const d = el('div', 'dl');
+      d.appendChild(el('span', 'k', t(lk)));
+      d.appendChild(el('span', 'v ' + (pct >= ENTRAINEMENT_SEUIL ? 'ok' : 'ko'),
+        t('qc.reco_rate_short', { pct: pct, ok: s.ok, tot: s.tot })));
+      root.appendChild(d);
+    });
+
+    const h = el('div', 'lbl');
+    h.style.marginTop = '14px';
+    h.appendChild(el('span', 'txt', t('train.a_revoir', { n: r.aRevoir.length })));
+    root.appendChild(h);
+
+    if (!r.aRevoir.length) {
+      const p = el('div', 'msg good');
+      p.textContent = t('train.parfait');
+      root.appendChild(p);
+    }
+    /* On montre les vingt premiers : au-delà, c'est le fichier qu'on lit,
+       pas un écran de téléphone. */
+    r.aRevoir.slice(0, 20).forEach(a => {
+      const c = el('div', 'card col');
+      c.appendChild(el('div', 't', a.arbre_id));
+      a.ecarts.forEach(e => {
+        c.appendChild(el('div', 'd', t('train.ecart', {
+          v: t(VARS_COMPAREES.find(x => x[0] === e.variable)[1]),
+          ref: libelleValeur(e.variable, e.reference),
+          eleve: libelleValeur(e.variable, e.stagiaire)
+        })));
+      });
+      root.appendChild(c);
+    });
+    if (r.aRevoir.length > 20) {
+      const p = el('div', 'msg');
+      p.textContent = t('train.et_plus', { n: r.aRevoir.length - 20 });
+      root.appendChild(p);
+    }
+
+    root.appendChild(bigButton('train.export', null, () => exportEntrainement(r),
+      'border-color:var(--green);color:var(--green)'));
+    root.appendChild(bigButton('common.ok', null, async () => {
+      trainState = null;
+      await metaSet('entrainement', null);
+      closeOv();
+      await goHome();
+    }));
+  });
+}
+
+/* Rapport au format long, une ligne par arbre et par variable comparée :
+   le responsable peut trier, filtrer, faire un tableau croisé. */
+async function exportEntrainement(r) {
+  const colonnes = ['arbre_id', 'terrain', 'rang', 'position', 'variable',
+    'valeur_reference', 'valeur_stagiaire', 'accord',
+    'stagiaire_label', 'stagiaire_device', 'campagne', 'horodatage_iso'];
+  const stamp = nowIso();
+  const lignes = r.lignes.map(l => [
+    l.arbre_id, l.terrain, l.rang, l.position, l.variable,
+    libelleValeur(l.variable, l.reference),
+    libelleValeur(l.variable, l.stagiaire),
+    l.accord ? 'OUI' : 'NON',
+    PREF.operateur, PREF.deviceId, CAMPAGNE_ENTRAINEMENT, stamp
+  ]);
+  const nom = 'ENTRAINEMENT_' + (PREF.operateur || PREF.deviceId) + '_' + stampLocal() + '.csv';
+  const ok = download(nom, csvDocument(colonnes, lignes));
+  toast(ok ? 'fin.exported' : 'fin.export_failed', !ok, { f: nom });
+}
+
 async function startRecontrole(picked) {
   recoState = { ids: picked.map(o => o.arbre_id), ref: {}, i: 0, answers: [] };
   picked.forEach(o => { recoState.ref[o.arbre_id] = o; });
@@ -2070,6 +2401,23 @@ function wireButtons() {
   $('btn-data').addEventListener('click', goData);
   $('btn-blanc').addEventListener('click', () => openOv(FICHES.blanc));
   $('btn-reco').addEventListener('click', openRecontrole);
+  $('btn-train').addEventListener('click', openEntrainement);
+  $('btn-ref').addEventListener('click', () => $('reffile').click());
+  $('reffile').addEventListener('change', async (ev) => {
+    const f = ev.target.files && ev.target.files[0];
+    ev.target.value = '';
+    if (!f) return;
+    try {
+      const n = await importerReference(f);
+      const rangs = await rangsEntrainement();
+      toast('train.ref_ok', false, {
+        n: n,
+        rangs: rangs.map(r => r.terrain + '-R' + pad(r.rang, 2)).join(' · ') || '—'
+      });
+    } catch (e) {
+      toast('train.ref_ko', true);
+    }
+  });
   $('btn-exportall').addEventListener('click', async () => {
     const r = await exportAll();
     toast(r.ok ? 'fin.exported' : 'fin.export_failed', !r.ok, { f: r.name });

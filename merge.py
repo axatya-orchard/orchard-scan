@@ -43,9 +43,12 @@ ENC_OUT = "utf-8-sig"     # le remet : Excel en a besoin
 CLE = ("arbre_id", "passe")
 TRI = ("terrain", "rang", "position", "passe")
 
-# Le jeu de demonstration ne doit jamais atteindre l'analyste.
+# Ni le jeu de demonstration, ni les saisies d'entrainement ne doivent
+# atteindre l'analyste. Les secondes portent sur de vrais arbres, mais elles
+# ont ete faites par quelqu'un qui apprend, sur des rangs deja releves : les
+# compter reviendrait a ecraser le travail de l'operateur experimente.
 TERRAIN_DEMO = "TD"
-SOURCE_DEMO = "DEMO"
+SOURCES_EXCLUES = ("DEMO", "ENTRAINEMENT")
 
 
 def lire_csv(chemin):
@@ -119,7 +122,7 @@ def fusionner(dossier):
 
     entetes = []
     toutes = []
-    demo = 0
+    exclues = {s: 0 for s in SOURCES_EXCLUES}
 
     for chemin in fichiers:
         try:
@@ -134,8 +137,12 @@ def fusionner(dossier):
         for l in lignes:
             if not (l.get("arbre_id") or "").strip():
                 continue
-            if l.get("terrain") == TERRAIN_DEMO or l.get("source") == SOURCE_DEMO:
-                demo += 1
+            src = (l.get("source") or "").strip()
+            if l.get("terrain") == TERRAIN_DEMO:
+                exclues["DEMO"] += 1
+                continue
+            if src in SOURCES_EXCLUES:
+                exclues[src] += 1
                 continue
             l["_fichier"] = os.path.basename(chemin)
             toutes.append(l)
@@ -158,7 +165,7 @@ def fusionner(dossier):
 
     retenues.sort(key=cle_tri)
     doublons.sort(key=cle_tri)
-    return entetes, retenues, doublons, demo, len(fichiers)
+    return entetes, retenues, doublons, exclues, len(fichiers)
 
 
 # --------------------------------------------------------------------------
@@ -227,7 +234,7 @@ def main():
     os.makedirs(sortie, exist_ok=True)
 
     print("Lecture de %s" % os.path.abspath(args.dossier))
-    entetes, retenues, doublons, demo, nb_fichiers = fusionner(args.dossier)
+    entetes, retenues, doublons, exclues, nb_fichiers = fusionner(args.dossier)
 
     if "_fichier" not in entetes:
         entetes.append("_fichier")
@@ -260,8 +267,9 @@ def main():
     for terrain in sorted(par_terrain):
         print("      %-4s ...................... %d" % (terrain, len(par_terrain[terrain])))
     print("  doublons ecartes .............. %d" % len(doublons))
-    if demo:
-        print("  lignes de demonstration exclues %d" % demo)
+    for src, n in sorted(exclues.items()):
+        if n:
+            print("  lignes %-13s exclues .. %d" % (src.lower(), n))
     print("  arbres incomplets ............. %d" % incomplets)
     print("  saisies sous 4 s (RAPIDE) ..... %d" % rapides)
     print("  arbres hors plan .............. %d" % hors_plan)

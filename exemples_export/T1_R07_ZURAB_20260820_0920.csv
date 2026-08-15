@@ -1,0 +1,4 @@
+﻿sep=;
+arbre_id;terrain;rang;position;hors_plan;rang_statut;etat_code;etat_label;autre_type;autre_fruit;espece;tronc_code;tronc_label;arch_code;arch_label;fruits_code;fruits_label;charge_mode;couleur_code;couleur_label;pourri_code;pourri_label;ecorce_code;ecorce_label;arbre_complet;duree_saisie_s;flag_qc;horodatage_iso;operateur_label;device_id;app_version;passe;langue_saisie;version;source;media_ref
+T1-R07-001;T1;7;1;NON;COMPLET;1;VIVANT;NULL;NULL;NULL;2;GROS;1;B;1;1-5;PALIER;0;VERTES;0;NON;2;COUVERTE DE BOSSES;OUI;19;OK;2026-08-20T09:15:00.000Z;ZURAB;DB9X8Y;1.2.0;ETE_2026_ENTRAINEMENT;RU;1;ENTRAINEMENT;NULL
+T1-R07-002;T1;7;2;NON;COMPLET;1;VIVANT;NULL;NULL;NULL;0;FIN;2;C;0;0;PALIER;NULL;NULL;NULL;NULL;0;LISSE;OUI;22;OK;2026-08-20T09:15:30.000Z;ZURAB;DB9X8Y;1.2.0;ETE_2026_ENTRAINEMENT;RU;1;ENTRAINEMENT;NULL

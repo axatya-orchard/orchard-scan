@@ -1234,5 +1234,95 @@
     "fr": "La base de données locale est inaccessible. N'entre rien : préviens le responsable.",
     "en": "The local database is unreachable. Do not enter anything: tell the supervisor.",
     "ru": "Локальная база данных недоступна. Ничего не вводи: сообщи ответственному."
+  },
+  "setup.entrainement": {
+    "fr": "MODE ENTRAÎNEMENT",
+    "en": "TRAINING MODE",
+    "ru": "РЕЖИМ ОБУЧЕНИЯ"
+  },
+  "setup.importer_ref": {
+    "fr": "IMPORTER LE CORRIGÉ",
+    "en": "IMPORT THE REFERENCE",
+    "ru": "ЗАГРУЗИТЬ ЭТАЛОН"
+  },
+  "train.h": {
+    "fr": "MODE ENTRAÎNEMENT",
+    "en": "TRAINING MODE",
+    "ru": "РЕЖИМ ОБУЧЕНИЯ"
+  },
+  "train.intro": {
+    "fr": "Tu vas refaire {n} arbres sur les rangs {rangs}, déjà relevés par un opérateur expérimenté. Tu ne verras jamais sa réponse. À la fin, le responsable aura la liste des arbres à revoir avec toi.",
+    "en": "You will redo {n} trees on rows {rangs}, already surveyed by an experienced operator. You will never see their answer. At the end, the supervisor gets the list of trees to go over with you.",
+    "ru": "Ты пройдёшь заново {n} деревьев на рядах {rangs}, которые уже обошёл опытный работник. Его ответ ты не увидишь. В конце у ответственного будет список деревьев, которые вы разберёте вместе."
+  },
+  "train.start": {
+    "fr": "COMMENCER L'ENTRAÎNEMENT",
+    "en": "START THE TRAINING",
+    "ru": "НАЧАТЬ ОБУЧЕНИЕ"
+  },
+  "train.running": {
+    "fr": "ENTRAÎNEMENT {i} / {n}",
+    "en": "TRAINING {i} / {n}",
+    "ru": "ОБУЧЕНИЕ {i} / {n}"
+  },
+  "train.aucune_reference": {
+    "fr": "Aucun corrigé sur ce téléphone. Le responsable doit d'abord importer un export fait par un opérateur expérimenté, avec IMPORTER LE CORRIGÉ.",
+    "en": "No reference on this phone. The supervisor must first import an export made by an experienced operator, using IMPORT THE REFERENCE.",
+    "ru": "На этом телефоне нет эталона. Ответственный должен сначала загрузить выгрузку опытного работника через ЗАГРУЗИТЬ ЭТАЛОН."
+  },
+  "train.ref_ok": {
+    "fr": "Corrigé importé : {n} arbres. Rangs d'entraînement : {rangs}.",
+    "en": "Reference imported: {n} trees. Training rows: {rangs}.",
+    "ru": "Эталон загружен: деревьев {n}. Ряды для обучения: {rangs}."
+  },
+  "train.ref_ko": {
+    "fr": "Fichier illisible. Choisis un export ORCHARD-SCAN (celui qui commence par sep=;).",
+    "en": "Unreadable file. Pick an ORCHARD-SCAN export (the one starting with sep=;).",
+    "ru": "Файл не читается. Выбери выгрузку ORCHARD-SCAN (ту, что начинается с sep=;)."
+  },
+  "train.result_h": {
+    "fr": "RÉSULTAT DE L'ENTRAÎNEMENT",
+    "en": "TRAINING RESULT",
+    "ru": "РЕЗУЛЬТАТ ОБУЧЕНИЯ"
+  },
+  "train.global": {
+    "fr": "Concordance générale : {pct} % ({ok}/{tot} réponses identiques)",
+    "en": "Overall agreement: {pct} % ({ok}/{tot} identical answers)",
+    "ru": "Общее совпадение: {pct} % ({ok}/{tot} одинаковых ответов)"
+  },
+  "train.a_revoir": {
+    "fr": "ARBRES À REVOIR ENSEMBLE : {n}",
+    "en": "TREES TO GO OVER TOGETHER: {n}",
+    "ru": "ДЕРЕВЬЕВ РАЗОБРАТЬ ВМЕСТЕ: {n}"
+  },
+  "train.ecart": {
+    "fr": "{v} — attendu {ref}, saisi {eleve}",
+    "en": "{v} — expected {ref}, entered {eleve}",
+    "ru": "{v} — ожидалось {ref}, введено {eleve}"
+  },
+  "train.parfait": {
+    "fr": "Aucun écart. Tu peux partir sur les rangs réels.",
+    "en": "No discrepancy. You can move on to the real rows.",
+    "ru": "Расхождений нет. Можно переходить к настоящим рядам."
+  },
+  "train.et_plus": {
+    "fr": "et {n} autres arbres — voir le fichier exporté.",
+    "en": "and {n} more trees — see the exported file.",
+    "ru": "и ещё деревьев: {n} — смотри выгруженный файл."
+  },
+  "train.export": {
+    "fr": "EXPORTER LE RAPPORT",
+    "en": "EXPORT THE REPORT",
+    "ru": "ВЫГРУЗИТЬ ОТЧЁТ"
+  },
+  "qc.var_couleur": {
+    "fr": "COULEUR",
+    "en": "COLOUR",
+    "ru": "ЦВЕТ"
+  },
+  "qc.var_pourri": {
+    "fr": "POURRIES",
+    "en": "ROTTEN",
+    "ru": "ГНИЛЫЕ"
   }
 }

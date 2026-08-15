@@ -131,6 +131,60 @@ d'attente à vider ni de risque d'échec d'envoi.
 
 Au retour, brancher le téléphone ou copier le dossier `Download`, puis §5.
 
+## 5 ter. Former un nouvel opérateur — mode entraînement
+
+Le stagiaire refait **les 4 premiers rangs** déjà relevés par quelqu'un
+d'expérimenté, à l'aveugle, et on compare. À la fin, le responsable obtient un
+taux de concordance par variable et **la liste des arbres à revoir avec lui** —
+c'est cette liste qui forme, pas le pourcentage.
+
+### Préparer (une fois, au bureau, avec du réseau)
+
+1. Sur le téléphone de l'opérateur expérimenté : **ÉTAT DES DONNÉES →
+   EXPORTER TOUT**. Récupérer le fichier.
+2. Sur le téléphone du stagiaire : **IMPORTER LE CORRIGÉ**, choisir ce fichier.
+   L'application confirme le nombre d'arbres et annonce les rangs
+   d'entraînement.
+
+C'est nécessaire parce que le téléphone d'un nouvel arrivant est vide : il n'a
+aucun relevé auquel se comparer.
+
+### Au champ
+
+**MODE ENTRAÎNEMENT** sur l'écran d'accueil. L'application enchaîne les arbres
+des 4 rangs, dans l'ordre, position par position — le stagiaire parcourt
+physiquement les rangs. **La réponse de l'opérateur expérimenté n'est jamais
+affichée.**
+
+La session est reprenable : batterie vide ou application tuée, elle repart au
+bon arbre. Une centaine d'arbres, il ne faut pas la perdre.
+
+### Le rapport
+
+À la fin, à l'écran : concordance générale, puis une ligne par variable (ÉTAT,
+TRONC, BRANCHES, POMMES, COULEUR, POURRIES, ÉCORCE), en vert au-dessus de 80 %,
+en rouge en dessous. Puis les arbres divergents, **celui qui cumule le plus
+d'écarts en premier**, avec pour chacun : la variable, ce qui était attendu, ce
+qui a été saisi.
+
+**EXPORTER LE RAPPORT** produit `ENTRAINEMENT_<nom>_<date>.csv`, au format long
+— une ligne par arbre et par variable comparée — que le responsable peut trier
+et croiser.
+
+### Ce qui protège les données
+
+| | |
+|---|---|
+| Le corrigé importé | vit dans un magasin séparé, **jamais** dans les observations : il ne peut pas ressortir dans un export |
+| Les saisies du stagiaire | `source = ENTRAINEMENT`, `passe = ETE_2026_ENTRAINEMENT` |
+| `merge.py` | **écarte les lignes `ENTRAINEMENT`** |
+
+Ce dernier point n'est pas cosmétique. Le stagiaire repasse sur des arbres déjà
+relevés, **plus tard** que l'opérateur expérimenté. Sans l'exclusion, ses lignes
+gagneraient le dédoublonnage — la plus récente l'emporte — et effaceraient
+silencieusement le vrai relevé. Le jeu d'essai de `exemples_export/` contient
+ce cas précis.
+
 ## 6. Vérifier les traductions avant déploiement
 
 ```bash
