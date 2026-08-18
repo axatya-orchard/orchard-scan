@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ORCHARD-SCAN — diagnostic</title>
+<link rel="manifest" href="manifest.json">
+<style>
+body{font:600 15px -apple-system,Roboto,Arial,sans-serif;background:#14181B;color:#fff;
+ margin:0;padding:14px;line-height:1.4}
+h1{font-size:16px;letter-spacing:.12em;margin:0 0 12px}
+.l{display:flex;justify-content:space-between;gap:10px;padding:9px 0;
+ border-bottom:1px solid #2A3238;align-items:baseline}
+.k{color:#9FB0BA;font-size:13px}
+.v{font-weight:800;text-align:right;overflow-wrap:anywhere;max-width:58%}
+.ok{color:#7FD9A2}.ko{color:#FF8A8A}.wait{color:#E0B060}
+#verdict{margin-top:14px;padding:12px;border:3px solid #7FD9A2;font-size:14px}
+#verdict.bad{border-color:#FF8A8A}
+button{width:100%;height:56px;margin-top:12px;font:800 15px inherit;
+ background:#fff;color:#14181B;border:0}
+</style>
+</head>
+<body>
+<h1>DIAGNOSTIC D'INSTALLATION</h1>
+<div id="out"></div>
+<div id="verdict">…</div>
+<button onclick="location.reload()">RELANCER LE TEST</button>
+<script>
+const out = document.getElementById('out');
+let installable = null;
+
+function ligne(k, v, etat) {
+  const d = document.createElement('div'); d.className = 'l';
+  const a = document.createElement('span'); a.className = 'k'; a.textContent = k;
+  const b = document.createElement('span'); b.className = 'v ' + (etat || ''); b.textContent = v;
+  d.appendChild(a); d.appendChild(b); out.appendChild(d);
+}
+
+/* Chrome n'expose pas la raison d'un refus d'installation. On teste donc
+   chaque critere separement : celui qui tombe est la cause. */
+window.addEventListener('beforeinstallprompt', () => { installable = true; });
+
+(async () => {
+  ligne('HTTPS / contexte sur', window.isSecureContext ? 'OUI' : 'NON',
+        window.isSecureContext ? 'ok' : 'ko');
+  ligne('Navigateur', (navigator.userAgentData && navigator.userAgentData.brands
+        ? navigator.userAgentData.brands.map(b => b.brand + ' ' + b.version).join(', ')
+        : navigator.userAgent.slice(0, 90)), '');
+  ligne('Mode autonome deja actif',
+        matchMedia('(display-mode: standalone)').matches ? 'OUI — deja installee' : 'non', '');
+
+  // --- manifeste ---
+  let man = null;
+  try {
+    const r = await fetch('manifest.json', { cache: 'no-cache' });
+    ligne('manifest.json', r.status + ' ' + (r.headers.get('content-type') || ''), r.ok ? 'ok' : 'ko');
+    man = await r.json();
+    ligne('  name / short_name', (man.name || '?') + ' / ' + (man.short_name || '?'),
+          man.name && man.short_name ? 'ok' : 'ko');
+    ligne('  display', man.display || '?', man.display === 'standalone' ? 'ok' : 'ko');
+    ligne('  start_url', man.start_url || '?', man.start_url ? 'ok' : 'ko');
+  } catch (e) {
+    ligne('manifest.json', 'ECHEC ' + e.message, 'ko');
+  }
+
+  // --- icones : Chrome exige au moins une 192 et une 512 qui se decodent ---
+  if (man && man.icons) {
+    for (const ic of man.icons) {
+      try {
+        const r = await fetch(ic.src, { cache: 'no-cache' });
+        const blob = await r.blob();
+        const bmp = await createImageBitmap(blob);
+        ligne('  ' + ic.sizes, r.status + ' · ' + bmp.width + 'x' + bmp.height
+              + ' · ' + blob.type + ' · ' + (ic.purpose || 'any'),
+              r.ok && bmp.width >= 192 ? 'ok' : 'ko');
+      } catch (e) {
+        ligne('  ' + ic.sizes, 'ILLISIBLE ' + e.message, 'ko');
+      }
+    }
+  }
+
+  // --- service worker ---
+  if (!('serviceWorker' in navigator)) {
+    ligne('Service worker', 'NON SUPPORTE', 'ko');
+  } else {
+    try {
+      const reg = await navigator.serviceWorker.register('service-worker.js', { updateViaCache: 'none' });
+      const etat = reg.active ? 'actif' : reg.installing ? 'en cours' : reg.waiting ? 'en attente' : 'inconnu';
+      ligne('Service worker', etat, reg.active ? 'ok' : 'wait');
+      ligne('  portee', reg.scope.replace(location.origin, ''), 'ok');
+      ligne('  controle la page', navigator.serviceWorker.controller ? 'OUI' : 'pas encore',
+            navigator.serviceWorker.controller ? 'ok' : 'wait');
+    } catch (e) {
+      ligne('Service worker', 'ECHEC ' + e.message, 'ko');
+    }
+  }
+
+  // --- stockage, le critere qui compte vraiment pour l'application ---
+  try {
+    const deja = await navigator.storage.persisted();
+    const accorde = deja || await navigator.storage.persist();
+    ligne('Stockage permanent', accorde ? 'ACCORDE' : 'REFUSE', accorde ? 'ok' : 'ko');
+    const est = await navigator.storage.estimate();
+    ligne('  espace libre', Math.round((est.quota - (est.usage || 0)) / 1048576) + ' Mo', '');
+  } catch (e) {
+    ligne('Stockage permanent', 'API absente', 'ko');
+  }
+
+  // beforeinstallprompt arrive de facon asynchrone
+  setTimeout(() => {
+    const v = document.getElementById('verdict');
+    if (installable) {
+      v.textContent = 'Chrome considere le site comme installable. L\u2019entree « Установить приложение » doit etre dans le menu ⋮.';
+    } else {
+      v.className = 'bad';
+      v.textContent = 'Chrome n\u2019a pas propose l\u2019installation. La ligne en rouge ci-dessus en donne la raison. Si tout est vert, ce Chrome est trop ancien ou l\u2019installation est bridee par le telephone.';
+    }
+  }, 3000);
+})();
+</script>
+</body>
+</html>

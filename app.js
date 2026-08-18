@@ -22,7 +22,7 @@
    1. CONSTANTES
    =================================================================== */
 
-const APP_VERSION = '1.3.0';
+const APP_VERSION = '1.3.1';
 const DB_NAME = 'orchard-scan';
 const DB_VER = 2;
 const REGISTRY_URL = 'rangs_registry_v2.csv';
@@ -2524,7 +2524,24 @@ function startClock() {
   setInterval(paintSaveBar, 20000);
 }
 
+/* Le service worker s'enregistre AVANT tout le reste.
+   Il etait auparavant en fin de boot() : n'importe quelle erreur en amont —
+   strings.json indisponible, base verrouillee, registre illisible — privait
+   l'application du mode hors ligne, et c'est justement dans ces cas-la qu'on
+   en a besoin. C'est aussi lui qui rend le site installable : sans lui, Chrome
+   ne propose jamais « Installer l'application ». */
+function enregistrerServiceWorker() {
+  if (!('serviceWorker' in navigator)) return;
+  /* updateViaCache: 'none' — le script du service worker lui-meme ne doit
+     jamais venir du cache HTTP, sinon une correction resterait invisible
+     jusqu'a l'expiration du max-age. */
+  navigator.serviceWorker.register('service-worker.js', { updateViaCache: 'none' })
+    .then(reg => reg.update())
+    .catch(() => { /* hors ligne : la version en cache fait le travail */ });
+}
+
 async function boot() {
+  enregistrerServiceWorker();
   try {
     await loadStrings();
   } catch (e) {
@@ -2570,14 +2587,6 @@ async function boot() {
     await goHome();
   }
 
-  if ('serviceWorker' in navigator) {
-    /* updateViaCache: 'none' — le script du service worker lui-même ne doit
-       jamais venir du cache HTTP, sinon une correction resterait invisible
-       jusqu'à l'expiration du max-age. */
-    navigator.serviceWorker.register('service-worker.js', { updateViaCache: 'none' })
-      .then(reg => reg.update())
-      .catch(() => { /* hors ligne : la version en cache fait le travail */ });
-  }
 }
 
 function renderDynamic() {
